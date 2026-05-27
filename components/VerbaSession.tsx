@@ -122,7 +122,7 @@ export default function VerbaSession({ autostart = false }: { autostart?: boolea
     await speak(opening, async () => {
       await startSTTRef.current()
       setTurn('listening')
-    })
+    }, m)
 
     timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
   }, [speak])
@@ -178,7 +178,7 @@ export default function VerbaSession({ autostart = false }: { autostart?: boolea
       unlockAudio()
       await speak(reply, () => {
         setTimeout(() => { setTurn('listening'); resumeSTTRef.current() }, 400)
-      })
+      }, mode)
     } catch {
       setTurn('listening')
       setTimeout(() => resumeSTTRef.current(), 400)

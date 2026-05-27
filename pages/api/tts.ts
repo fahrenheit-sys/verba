@@ -1,10 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-const VOICE_IDS: Record<string, string> = {
-  flow: process.env.ELEVENLABS_VOICE_FLOW || 'EXAVITQu4vr4xnSDxMaL',
-  boardroom: process.env.ELEVENLABS_VOICE_BOARDROOM || 'onwK4e9ZLuTAKqWW03F9',
-}
-
 export const config = {
   api: { responseLimit: false },
 }
@@ -12,10 +7,13 @@ export const config = {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { text, mode } = req.body as { text: string; mode: string }
-  if (!text || !mode) return res.status(400).json({ error: 'Missing text or mode' })
+  const { text, mode } = req.body as { text: string; mode?: string }
+  if (!text) return res.status(400).json({ error: 'Missing text' })
 
-  const voiceId = VOICE_IDS[mode] || VOICE_IDS.flow
+  // Use different voices per mode — both fall back gracefully
+  const voiceId = mode === 'boardroom'
+    ? (process.env.ELEVENLABS_VOICE_BOARDROOM || 'onwK4e9ZLuTAKqWW03F9')
+    : (process.env.ELEVENLABS_VOICE_FLOW || 'EXAVITQu4vr4xnSDxMaL')
 
   try {
     const response = await fetch(
