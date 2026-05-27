@@ -29,9 +29,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           text,
           model_id: 'eleven_flash_v2_5',
           voice_settings: {
-            stability: mode === 'boardroom' ? 0.75 : 0.55,
-            similarity_boost: 0.8,
-            style: mode === 'boardroom' ? 0.1 : 0.35,
+            stability: mode === 'boardroom' ? 0.72 : 0.5,
+            similarity_boost: 0.85,
+            style: mode === 'boardroom' ? 0.08 : 0.3,
             use_speaker_boost: true,
           },
         }),

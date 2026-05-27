@@ -66,18 +66,17 @@ export function useTTS() {
       blobUrlRef.current = url
 
       // Reuse the shared unlocked audio element if available
-      const audio = sharedAudio || new Audio()
-      sharedAudio = null // take ownership
+      // Always create fresh Audio element — reusing causes volume inconsistency on iOS
+      const audio = new Audio()
+      audio.volume = 1
       audioRef.current = audio
 
       audio.src = url
-      audio.volume = 1
 
       audio.onended = () => {
         URL.revokeObjectURL(url)
         blobUrlRef.current = null
         audioRef.current = null
-        sharedAudio = audio // return for reuse
         audio.onended = null
         audio.onerror = null
         if (!abortFlag) onEnd()
