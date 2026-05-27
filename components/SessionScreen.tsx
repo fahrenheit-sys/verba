@@ -5,14 +5,9 @@ import { useTTS } from '../lib/useTTS'
 import { OPENING_LINES, MODE_CONFIG, type Mode } from '../lib/constants'
 
 type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking'
-
 interface Message { role: 'user' | 'assistant'; content: string }
 export interface TranscriptLine { speaker: string; text: string }
-
-interface SessionScreenProps {
-  mode: Mode
-  onEnd: (transcript: TranscriptLine[]) => void
-}
+interface SessionScreenProps { mode: Mode; onEnd: (transcript: TranscriptLine[]) => void }
 
 export default function SessionScreen({ mode, onEnd }: SessionScreenProps) {
   const [orbState, setOrbState] = useState<OrbState>('idle')
@@ -28,224 +23,112 @@ export default function SessionScreen({ mode, onEnd }: SessionScreenProps) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const orbStateRef = useRef<OrbState>('idle')
   const cfg = MODE_CONFIG[mode]
-
   const { speak, stop: stopTTS } = useTTS()
 
   const sendToAI = useCallback(async (text: string) => {
-    if (!text.trim()) {
-      setOrbState('idle')
-      orbStateRef.current = 'idle'
-      setStatusText('Hold to speak')
-      return
-    }
-
+    if (!text.trim()) { setOrbState('idle'); orbStateRef.current = 'idle'; setStatusText('Hold to speak'); return }
     const userMsg: Message = { role: 'user', content: text }
     const updated = [...messagesRef.current, userMsg]
     messagesRef.current = updated
-
     const newLine = { speaker: 'You', text }
     transcriptRef.current = [...transcriptRef.current, newLine]
     setTranscript([...transcriptRef.current])
     setInterimText('')
-
-    setOrbState('thinking')
-    orbStateRef.current = 'thinking'
-    setStatusText('Thinking…')
-
+    setOrbState('thinking'); orbStateRef.current = 'thinking'; setStatusText('Thinking…')
     try {
       const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: updated, mode, action: 'chat' }),
       })
       const { text: reply } = await res.json()
-
       const aiMsg: Message = { role: 'assistant', content: reply }
       messagesRef.current = [...updated, aiMsg]
-
       const aiLine = { speaker: 'AI', text: reply }
       transcriptRef.current = [...transcriptRef.current, aiLine]
       setTranscript([...transcriptRef.current])
-
-      setOrbState('speaking')
-      orbStateRef.current = 'speaking'
-      setStatusText('Speaking…')
-
-      await speak(reply, mode, () => {
-        setOrbState('idle')
-        orbStateRef.current = 'idle'
-        setStatusText('Hold to speak')
-      })
-    } catch {
-      setOrbState('idle')
-      orbStateRef.current = 'idle'
-      setStatusText('Error — try again')
-    }
+      setOrbState('speaking'); orbStateRef.current = 'speaking'; setStatusText('Speaking…')
+      await speak(reply, mode, () => { setOrbState('idle'); orbStateRef.current = 'idle'; setStatusText('Hold to speak') })
+    } catch { setOrbState('idle'); orbStateRef.current = 'idle'; setStatusText('Error — try again') }
   }, [mode, speak])
 
-  const handleTranscript = useCallback((text: string, isFinal: boolean) => {
-    setInterimText(text)
-  }, [])
-
-  // Called by Deepgram when it detects end of utterance
+  const handleTranscript = useCallback((text: string, _isFinal: boolean) => { setInterimText(text) }, [])
   const handleUtteranceEnd = useCallback((text: string) => {
     if (orbStateRef.current !== 'listening') return
-    setIsPressed(false)
-    setInterimText('')
-    sendToAI(text)
+    setIsPressed(false); setInterimText(''); sendToAI(text)
   }, [sendToAI])
-
   const handleSTTError = useCallback((err: string) => {
-    console.error('STT error:', err)
-    setStatusText(err)
-    setOrbState('idle')
-    orbStateRef.current = 'idle'
-    setIsPressed(false)
+    setStatusText(err); setOrbState('idle'); orbStateRef.current = 'idle'; setIsPressed(false)
   }, [])
 
-  const { start: startSTT, stop: stopSTT } = useDeepgram({
-    onTranscript: handleTranscript,
-    onUtteranceEnd: handleUtteranceEnd,
-    onError: handleSTTError,
-  })
+  const { start: startSTT, stop: stopSTT } = useDeepgram({ onTranscript: handleTranscript, onUtteranceEnd: handleUtteranceEnd, onError: handleSTTError })
 
-  // Open with AI line
   useEffect(() => {
     const opening = OPENING_LINES[mode]
-    const aiMsg: Message = { role: 'assistant', content: opening }
-    messagesRef.current = [aiMsg]
-    const line = { speaker: 'AI', text: opening }
-    transcriptRef.current = [line]
-    setTranscript([line])
-
-    setOrbState('speaking')
-    orbStateRef.current = 'speaking'
-    setStatusText('Speaking…')
-
-    speak(opening, mode, () => {
-      setOrbState('idle')
-      orbStateRef.current = 'idle'
-      setStatusText('Hold to speak')
-      setReady(true)
-    })
-
+    messagesRef.current = [{ role: 'assistant', content: opening }]
+    transcriptRef.current = [{ speaker: 'AI', text: opening }]
+    setTranscript([{ speaker: 'AI', text: opening }])
+    setOrbState('speaking'); orbStateRef.current = 'speaking'; setStatusText('Speaking…')
+    speak(opening, mode, () => { setOrbState('idle'); orbStateRef.current = 'idle'; setStatusText('Hold to speak'); setReady(true) })
     timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      stopTTS()
-    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); stopTTS() }
   }, [])
 
   const handlePressStart = useCallback(async () => {
     if (!ready || orbStateRef.current === 'thinking' || orbStateRef.current === 'speaking') return
-    stopTTS()
-    setIsPressed(true)
-    setOrbState('listening')
-    orbStateRef.current = 'listening'
-    setStatusText('Listening…')
-    setInterimText('')
+    stopTTS(); setIsPressed(true); setOrbState('listening'); orbStateRef.current = 'listening'; setStatusText('Listening…'); setInterimText('')
     await startSTT()
   }, [ready, stopTTS, startSTT])
 
   const handlePressEnd = useCallback(() => {
     if (!isPressed) return
-    // Stop the recorder — Deepgram will fire UtteranceEnd with final text
-    // If it doesn't fire within 1.5s, fall back to whatever we have
     const capturedText = stopSTT()
-
     setTimeout(() => {
       if (orbStateRef.current === 'listening') {
         setIsPressed(false)
-        setInterimText((current) => {
-          const text = current || capturedText
-          sendToAI(text)
-          return ''
-        })
+        setInterimText((current) => { sendToAI(current || capturedText); return '' })
       }
     }, 1500)
   }, [isPressed, stopSTT, sendToAI])
 
-  const handleEnd = () => {
-    stopTTS()
-    stopSTT()
-    if (timerRef.current) clearInterval(timerRef.current)
-    onEnd(transcriptRef.current)
-  }
-
-  const fmt = (s: number) =>
-    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
-
+  const handleEnd = () => { stopTTS(); stopSTT(); if (timerRef.current) clearInterval(timerRef.current); onEnd(transcriptRef.current) }
+  const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
   const isDisabled = !ready || orbStateRef.current === 'thinking' || orbStateRef.current === 'speaking'
 
   return (
     <div style={s.screen}>
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ ...s.pill, background: `${cfg.accent}18`, color: cfg.accent, borderColor: `${cfg.accent}33` }}>
-            {cfg.pill}
-          </div>
-          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12, fontFamily: 'monospace' }}>
-            {fmt(duration)}
-          </span>
+          <div style={{ ...s.pill, background: `${cfg.accent}18`, color: cfg.accent, borderColor: `${cfg.accent}33` }}>{cfg.pill}</div>
+          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12, fontFamily: 'monospace' }}>{fmt(duration)}</span>
         </div>
         <button onClick={handleEnd} style={s.endBtn}>End</button>
       </div>
-
       <div style={s.orbArea}>
         <Orb state={orbState} mode={mode} />
         <div style={s.status}>{statusText}</div>
-        {interimText ? (
-          <div style={s.interim}>{interimText}</div>
-        ) : (
-          <div style={{ ...s.interim, opacity: 0, pointerEvents: 'none' }}>—</div>
-        )}
+        <div style={{ ...s.interim, opacity: interimText ? 1 : 0 }}>{interimText || '—'}</div>
       </div>
-
       <div style={s.transcript}>
         {transcript.slice(-8).map((t, i, arr) => (
-          <div key={i} style={{
-            ...s.line,
-            opacity: arr.length > 4 && i < 2 ? 0.3 : 1,
-            animation: i === arr.length - 1 ? 'fade-in 0.3s ease' : 'none',
-          }}>
-            <span style={{
-              fontSize: 9, letterSpacing: '0.1em', minWidth: 22,
-              color: t.speaker === 'You' ? cfg.accent : 'rgba(255,255,255,0.25)',
-              textTransform: 'uppercase', paddingTop: 2,
-            }}>
+          <div key={i} style={{ ...s.line, opacity: arr.length > 4 && i < 2 ? 0.3 : 1, animation: i === arr.length - 1 ? 'fade-in 0.3s ease' : 'none' }}>
+            <span style={{ fontSize: 9, letterSpacing: '0.1em', minWidth: 22, color: t.speaker === 'You' ? cfg.accent : 'rgba(255,255,255,0.25)', textTransform: 'uppercase', paddingTop: 2 }}>
               {t.speaker === 'You' ? 'YOU' : 'AI'}
             </span>
-            <span style={{
-              fontSize: 13, lineHeight: 1.55,
-              color: t.speaker === 'You' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)',
-            }}>
-              {t.text}
-            </span>
+            <span style={{ fontSize: 13, lineHeight: 1.55, color: t.speaker === 'You' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)' }}>{t.text}</span>
           </div>
         ))}
       </div>
-
       <div style={s.pttArea}>
         <button
-          onMouseDown={handlePressStart}
-          onMouseUp={handlePressEnd}
+          onMouseDown={handlePressStart} onMouseUp={handlePressEnd}
           onTouchStart={(e) => { e.preventDefault(); handlePressStart() }}
           onTouchEnd={(e) => { e.preventDefault(); handlePressEnd() }}
           disabled={isDisabled}
-          style={{
-            ...s.ptt,
-            background: isPressed ? cfg.accent : 'rgba(255,255,255,0.05)',
-            borderColor: isPressed ? cfg.accent : 'rgba(255,255,255,0.1)',
-            boxShadow: isPressed ? `0 0 40px ${cfg.accent}44` : 'none',
-            transform: isPressed ? 'scale(0.97)' : 'scale(1)',
-            opacity: isDisabled ? 0.4 : 1,
-          }}
+          style={{ ...s.ptt, background: isPressed ? cfg.accent : 'rgba(255,255,255,0.05)', borderColor: isPressed ? cfg.accent : 'rgba(255,255,255,0.1)', boxShadow: isPressed ? `0 0 40px ${cfg.accent}44` : 'none', transform: isPressed ? 'scale(0.97)' : 'scale(1)', opacity: isDisabled ? 0.4 : 1 }}
         >
           {isPressed ? '● RECORDING' : '🎙  HOLD TO SPEAK'}
         </button>
-        <p style={s.hint}>
-          {transcript.length} exchanges · {mode === 'boardroom' ? 'Board simulation' : 'Flow training'}
-        </p>
+        <p style={s.hint}>{transcript.length} exchanges · {mode === 'boardroom' ? 'Board simulation' : 'Flow training'}</p>
       </div>
     </div>
   )
