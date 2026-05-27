@@ -104,6 +104,7 @@ export default function VerbaSession({ autostart = false }: { autostart?: boolea
     txRef.current = [{ speaker: 'ai', text: opening }]
     setTranscript([{ speaker: 'ai', text: opening }])
 
+    unlockAudio()
     await speak(opening, async () => {
       await startSTTRef.current()
       setTurn('listening')
@@ -160,6 +161,7 @@ export default function VerbaSession({ autostart = false }: { autostart?: boolea
       setTranscript([...txRef.current])
       setTurn('speaking')
       pauseSTTRef.current()
+      unlockAudio()
       await speak(reply, () => {
         setTimeout(() => { setTurn('listening'); resumeSTTRef.current() }, 400)
       })
