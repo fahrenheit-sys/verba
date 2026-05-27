@@ -85,6 +85,22 @@ export default function VerbaSession({ autostart = false }: { autostart?: boolea
     seedRef.current = String.fromCharCode(65 + Math.floor(Math.random() * 26))
   }, [stopTTS])
 
+  // Hardcoded openings — no fetch needed so speak() fires immediately after tap
+  const OPENINGS: Record<Mode, string[]> = {
+    flow: [
+      "Hey — I heard you're involved with the new fitness club opening at White City. I've been so curious about it. What's it actually going to be like?",
+      "Oh, are you connected to Fahrenheit One? My friend mentioned it and I've been meaning to find out more. What's the vibe going to be?",
+      "I live near Hakoah and I keep seeing the development. Is it going to be one of those intimidating hardcore gyms or something different?",
+      "Someone told me there's a new premium gym opening in the Eastern Suburbs with reformer Pilates included — is that the one you're involved with?",
+    ],
+    boardroom: [
+      "Walk me through the commercial rationale for a $300-plus monthly membership in a market that already has strong competition from boutique studios.",
+      "The 2027 opening date concerns me. What's your mitigation strategy if construction runs late and you're holding pre-sold memberships?",
+      "I want to understand the unit economics. What's your member acquisition cost assumption and what's your churn model based on?",
+      "The Hakoah connection — how does that affect your total addressable market? Are you limiting yourself unnecessarily?",
+    ],
+  }
+
   const startSession = useCallback(async (m: Mode) => {
     setMode(m)
     setScreen('session')
@@ -94,11 +110,9 @@ export default function VerbaSession({ autostart = false }: { autostart?: boolea
     txRef.current = []
     setTurn('speaking')
 
-    const res = await fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'opening', mode: m, seed: seedRef.current }),
-    })
-    const { text: opening } = await res.json()
+    // Pick opening locally — no fetch, so speak() fires immediately after tap gesture
+    const lines = OPENINGS[m]
+    const opening = lines[seedRef.current.charCodeAt(0) % lines.length]
 
     msgsRef.current = [{ role: 'assistant', content: opening }]
     txRef.current = [{ speaker: 'ai', text: opening }]
